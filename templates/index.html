@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeatherML – City-Wise Prediction</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--blue:#58a6ff;--green:#3fb950;
+  --orange:#d29922;--red:#f85149;--purple:#bc8cff;--teal:#39d353;
+  --r:12px;--font:'Segoe UI',system-ui,-apple-system,sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:.9rem 1.6rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.logo{font-size:1.5rem;font-weight:800;letter-spacing:-.5px;color:var(--blue)}
+.logo span{color:var(--green)}
+.logo-sub{font-size:.8rem;color:var(--muted);margin-top:1px}
+.header-right{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:.72rem;color:var(--muted)}
+.badge.g{border-color:var(--green);color:var(--green)}
+.badge.b{border-color:var(--blue);color:var(--blue)}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 54px)}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+
+/* Sidebar */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:1rem;overflow-y:auto}
+.sidebar-title{font-size:.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:.6rem;font-weight:600;padding:0 .3rem}
+.city-search{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:.5rem .75rem;font-size:.88rem;margin-bottom:.8rem}
+.city-search:focus{outline:none;border-color:var(--blue)}
+.city-list{display:flex;flex-direction:column;gap:2px}
+.city-btn{background:transparent;border:none;border-radius:8px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;text-align:left;transition:.15s;width:100%}
+.city-btn:hover{background:var(--surface2)}
+.city-btn.active{background:var(--surface2);border-left:2px solid var(--blue);color:var(--blue)}
+.city-flag{font-size:1.1rem;flex-shrink:0}
+.city-info-small{flex:1;min-width:0}
+.city-name{font-size:.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.city-country{font-size:.72rem;color:var(--muted)}
+.city-climate-tag{font-size:.65rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1px 6px;color:var(--muted);white-space:nowrap}
+
+/* Main */
+.main{padding:1.4rem;overflow-y:auto}
+
+/* City header */
+.city-header{display:flex;align-items:flex-start;gap:1rem;margin-bottom:1.2rem;flex-wrap:wrap}
+.city-header-name{font-size:1.7rem;font-weight:800;line-height:1.1}
+.city-header-sub{color:var(--muted);font-size:.85rem;margin-top:.25rem}
+.city-badges{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
+.climate-badge{background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:.75rem;padding:3px 8px;color:var(--blue)}
+.stat-badges{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
+.stat-badge{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.4rem .8rem;text-align:center;min-width:70px}
+.stat-badge .sv{font-size:1.1rem;font-weight:700}
+.stat-badge .sk{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.2rem}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:.85rem;font-weight:500;padding:.55rem 1rem;transition:.15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.2rem}
+.card-title{font-size:.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:.8rem;font-weight:600}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:700px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.mb-1{margin-bottom:1rem}
+
+/* Form */
+.form-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-bottom:1rem}
+@media(max-width:600px){.form-row{grid-template-columns:1fr 1fr}}
+.field{display:flex;flex-direction:column;gap:.3rem}
+.field label{font-size:.75rem;color:var(--muted);font-weight:500}
+.field select,.field input[type=number]{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:.88rem;padding:.45rem .65rem;transition:border-color .2s}
+.field select:focus,.field input:focus{outline:none;border-color:var(--blue)}
+.slider-wrap{display:flex;flex-direction:column;gap:.3rem}
+.slider-label{font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between}
+.slider-val{color:var(--blue);font-weight:600}
+input[type=range]{accent-color:var(--blue);width:100%}
+
+/* Buttons */
+.btn{border:none;border-radius:7px;cursor:pointer;font-size:.85rem;font-weight:600;padding:.55rem 1.2rem;transition:.15s}
+.btn-blue{background:var(--blue);color:#0d1117}
+.btn-blue:hover{background:#79c0ff}
+.btn-green{background:var(--green);color:#0d1117}
+.btn-green:hover{background:#56d364}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
+.btn-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.8rem}
+
+/* Result */
+.result-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-top:1rem;display:none;overflow:hidden}
+.result-box.show{display:block}
+.result-top{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 1.2rem;display:flex;align-items:center;gap:.9rem}
+.res-icon{font-size:2.2rem}
+.res-val{font-size:2.6rem;font-weight:800;line-height:1}
+.res-lbl{font-size:.8rem;color:var(--muted);margin-top:.2rem}
+.result-body{padding:.9rem 1.2rem}
+.meta-row{display:flex;gap:1.5rem;flex-wrap:wrap}
+.meta-item{display:flex;flex-direction:column;gap:.15rem}
+.meta-k{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.9px}
+.meta-v{font-size:.9rem;font-weight:600}
+.conf-bar-wrap{margin-top:.8rem}
+.conf-lbl{font-size:.75rem;color:var(--muted);margin-bottom:.25rem;display:flex;justify-content:space-between}
+.conf-bar{background:var(--border);border-radius:4px;height:5px;overflow:hidden}
+.conf-fill{height:100%;border-radius:4px;background:var(--green);transition:width .6s ease}
+
+/* Forecast cards */
+.fc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;margin-bottom:1rem}
+@media(max-width:700px){.fc-grid{grid-template-columns:repeat(4,1fr)}}
+.fc-card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:.65rem .4rem;text-align:center}
+.fc-day{font-size:.65rem;color:var(--muted);font-weight:600}
+.fc-icon{font-size:1.3rem;margin:.2rem 0}
+.fc-temp{font-size:1rem;font-weight:700;color:var(--orange)}
+.fc-rain{font-size:.7rem;color:var(--blue)}
+
+/* Compare table */
+.cmp-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.cmp-table th{background:var(--surface2);color:var(--muted);font-size:.7rem;font-weight:600;letter-spacing:.8px;padding:.5rem .7rem;text-align:left;text-transform:uppercase}
+.cmp-table td{border-bottom:1px solid var(--border);padding:.55rem .7rem;vertical-align:middle}
+.cmp-table tr:last-child td{border-bottom:none}
+.temp-pill{border-radius:4px;display:inline-block;font-size:.8rem;font-weight:700;min-width:52px;padding:2px 7px;text-align:center}
+.hot{background:#3d1a1a;color:var(--red)}
+.warm{background:#3d2a0a;color:var(--orange)}
+.cool{background:#0a1e3d;color:var(--blue)}
+.rain-bar-bg{background:var(--border);border-radius:3px;height:5px;width:80px;display:inline-block;vertical-align:middle;overflow:hidden}
+.rain-bar-fill{background:var(--green);height:100%;border-radius:3px}
+.rain-pct{color:var(--muted);font-size:.75rem;margin-left:5px}
+
+/* Chart */
+.chart-img{width:100%;border-radius:8px;display:block;margin-top:.5rem}
+
+/* Spinner */
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:.3rem}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none}
+.loading-msg{color:var(--muted);font-size:.85rem;padding:1rem}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div>
+    <div class="logo">Weather<span>ML</span></div>
+    <div class="logo-sub">City-Wise Machine Learning Weather Prediction</div>
+  </div>
+  <div class="header-right">
+    <span class="badge g">15 Cities</span>
+    <span class="badge b">R² ~0.93</span>
+    <span class="badge g">Rain Acc ~80%</span>
+    <span class="badge">10yr Historical Data</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ─────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Select City</div>
+    <input class="city-search" id="city-search" placeholder="Search cities…" oninput="filterCities()">
+    <div class="city-list" id="city-list">
+      {% for city in city_list %}
+      <button class="city-btn {% if loop.first %}active{% endif %}" data-city="{{ city }}" onclick="selectCity('{{ city }}')">
+        <span class="city-flag">🌆</span>
+        <span class="city-info-small">
+          <div class="city-name">{{ city }}</div>
+        </span>
+      </button>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────── -->
+  <main class="main" id="main-content">
+    <div id="city-header-area"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="predict">Predict</button>
+      <button class="tab-btn" data-tab="forecast">7-Day Forecast</button>
+      <button class="tab-btn" data-tab="history">City History</button>
+      <button class="tab-btn" data-tab="compare">Compare Cities</button>
+    </div>
+
+    <!-- Predict Tab -->
+    <div class="tab-panel active" id="tab-predict">
+      <div class="card">
+        <div class="card-title">Prediction Inputs</div>
+        <div class="form-row">
+          <div class="field">
+            <label>Prediction Type</label>
+            <select id="pred-type">
+              <option value="temperature">🌡 Temperature</option>
+              <option value="rainfall">🌧 Rainfall</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Month</label>
+            <select id="pred-month">
+              <option value="1">January</option><option value="2">February</option>
+              <option value="3">March</option><option value="4">April</option>
+              <option value="5">May</option><option value="6">June</option>
+              <option value="7">July</option><option value="8">August</option>
+              <option value="9">September</option><option value="10">October</option>
+              <option value="11">November</option><option value="12">December</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Day of Year</label>
+            <input type="number" id="pred-doy" min="1" max="365" value="182">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="slider-wrap">
+            <div class="slider-label">Humidity <span class="slider-val" id="hum-val">65</span>%</div>
+            <input type="range" id="pred-hum" min="10" max="100" value="65" oninput="document.getElementById('hum-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Pressure <span class="slider-val" id="pres-val">1013</span> hPa</div>
+            <input type="range" id="pred-pres" min="980" max="1040" value="1013" oninput="document.getElementById('pres-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Wind <span class="slider-val" id="wind-val">15</span> km/h</div>
+            <input type="range" id="pred-wind" min="0" max="80" value="15" oninput="document.getElementById('wind-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Cloud Cover <span class="slider-val" id="cloud-val">50</span>%</div>
+            <input type="range" id="pred-cloud" min="0" max="100" value="50" oninput="document.getElementById('cloud-val').textContent=this.value">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-blue" onclick="predict()"><span id="pred-spin" class="spin hidden"></span>Predict</button>
+          <button class="btn btn-ghost" onclick="fillCityDefaults()">Use City Defaults</button>
+          <button class="btn btn-ghost" onclick="randomInputs()">Randomise</button>
+        </div>
+        <div class="result-box" id="pred-result">
+          <div class="result-top">
+            <div class="res-icon" id="res-icon">🌡</div>
+            <div>
+              <div class="res-val" id="res-val">–</div>
+              <div class="res-lbl" id="res-lbl">–</div>
+            </div>
+          </div>
+          <div class="result-body">
+            <div class="meta-row">
+              <div class="meta-item"><div class="meta-k">City</div><div class="meta-v" id="m-city">–</div></div>
+              <div class="meta-item"><div class="meta-k">Season</div><div class="meta-v" id="m-season">–</div></div>
+              <div class="meta-item"><div class="meta-k">Confidence</div><div class="meta-v" id="m-conf">–</div></div>
+              <div class="meta-item" id="m-rain-wrap"><div class="meta-k">Rain Prob</div><div class="meta-v" id="m-rain">–</div></div>
+            </div>
+            <div class="conf-bar-wrap">
+              <div class="conf-lbl"><span>Model Confidence</span><span id="conf-pct">–</span></div>
+              <div class="conf-bar"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Forecast Tab -->
+    <div class="tab-panel" id="tab-forecast">
+      <div class="card mb-1">
+        <div class="card-title">7-Day Forecast Inputs</div>
+        <div class="form-row">
+          <div class="field"><label>Start Date</label><input type="date" id="fc-date"></div>
+          <div class="slider-wrap">
+            <div class="slider-label">Humidity <span class="slider-val" id="fc-hum-val">65</span>%</div>
+            <input type="range" id="fc-hum" min="10" max="100" value="65" oninput="document.getElementById('fc-hum-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Pressure <span class="slider-val" id="fc-pres-val">1013</span></div>
+            <input type="range" id="fc-pres" min="980" max="1040" value="1013" oninput="document.getElementById('fc-pres-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Wind <span class="slider-val" id="fc-wind-val">15</span></div>
+            <input type="range" id="fc-wind" min="0" max="80" value="15" oninput="document.getElementById('fc-wind-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Cloud <span class="slider-val" id="fc-cloud-val">50</span>%</div>
+            <input type="range" id="fc-cloud" min="0" max="100" value="50" oninput="document.getElementById('fc-cloud-val').textContent=this.value">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="getForecast()"><span id="fc-spin" class="spin hidden"></span>Generate Forecast</button>
+          <button class="btn btn-ghost" onclick="fillFcDefaults()">City Defaults</button>
+        </div>
+      </div>
+      <div id="fc-result" class="hidden">
+        <div class="fc-grid" id="fc-cards"></div>
+        <div class="grid-2">
+          <div class="card"><div class="card-title">Temperature</div><div id="fc-temp-chart"></div></div>
+          <div class="card"><div class="card-title">Rain Probability</div><div id="fc-rain-chart"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-panel" id="tab-history">
+      <div class="grid-2" id="hist-charts">
+        <div class="card"><div class="card-title">Temperature</div><div id="hist-temp-chart"><div class="loading-msg">Select a city to load history.</div></div></div>
+        <div class="card"><div class="card-title">Rainfall</div><div id="hist-rain-chart"></div></div>
+      </div>
+    </div>
+
+    <!-- Compare Tab -->
+    <div class="tab-panel" id="tab-compare">
+      <div class="card mb-1">
+        <div class="card-title">Comparison Conditions</div>
+        <div class="form-row">
+          <div class="field">
+            <label>Month</label>
+            <select id="cmp-month">
+              <option value="1">January</option><option value="2">February</option>
+              <option value="3">March</option><option value="4">April</option>
+              <option value="5">May</option><option value="6">June</option>
+              <option value="7" selected>July</option><option value="8">August</option>
+              <option value="9">September</option><option value="10">October</option>
+              <option value="11">November</option><option value="12">December</option>
+            </select>
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Humidity <span class="slider-val" id="cmp-hum-val">65</span>%</div>
+            <input type="range" id="cmp-hum" min="10" max="100" value="65" oninput="document.getElementById('cmp-hum-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Pressure <span class="slider-val" id="cmp-pres-val">1013</span></div>
+            <input type="range" id="cmp-pres" min="980" max="1040" value="1013" oninput="document.getElementById('cmp-pres-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Wind <span class="slider-val" id="cmp-wind-val">15</span></div>
+            <input type="range" id="cmp-wind" min="0" max="80" value="15" oninput="document.getElementById('cmp-wind-val').textContent=this.value">
+          </div>
+          <div class="slider-wrap">
+            <div class="slider-label">Cloud <span class="slider-val" id="cmp-cloud-val">50</span>%</div>
+            <input type="range" id="cmp-cloud" min="0" max="100" value="50" oninput="document.getElementById('cmp-cloud-val').textContent=this.value">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-blue" onclick="compareAll()"><span id="cmp-spin" class="spin hidden"></span>Compare All Cities</button>
+        </div>
+      </div>
+      <div id="cmp-result" class="hidden">
+        <div class="card mb-1"><div id="cmp-chart"></div></div>
+        <div class="card"><table class="cmp-table" id="cmp-table"></table></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const CITY_DATA    = {{ city_data|safe }};
+const CITY_SUMMARY = {{ city_summary|safe }};
+let currentCity    = '{{ city_list[0] }}';
+
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('fc-date').value = today;
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('tab-'+b.dataset.tab).classList.add('active');
+  });
+});
+
+// ── City selection ────────────────────────────────────────────────────────────
+function selectCity(city) {
+  currentCity = city;
+  document.querySelectorAll('.city-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.city === city);
+  });
+  loadCityInfo(city);
+}
+
+async function loadCityInfo(city) {
+  const r    = await fetch(`/city_info?city=${encodeURIComponent(city)}`);
+  const data = await r.json();
+
+  document.getElementById('city-header-area').innerHTML = `
+    <div class="city-header">
+      <div>
+        <div class="city-header-name">${city}</div>
+        <div class="city-header-sub">${data.country} · ${data.lat.toFixed(2)}°, ${data.lon.toFixed(2)}°</div>
+        <div class="city-badges"><span class="climate-badge">${data.climate}</span></div>
+      </div>
+      <div class="stat-badges">
+        <div class="stat-badge"><div class="sv" style="color:var(--blue)">${data.avg_temp}°C</div><div class="sk">Avg Temp</div></div>
+        <div class="stat-badge"><div class="sv" style="color:var(--green)">${data.avg_humidity}%</div><div class="sk">Humidity</div></div>
+        <div class="stat-badge"><div class="sv" style="color:var(--orange)">${data.avg_wind} km/h</div><div class="sk">Wind</div></div>
+        <div class="stat-badge"><div class="sv" style="color:var(--purple)">${data.temp_r2 ? (data.temp_r2*100).toFixed(1)+'%' : '–'}</div><div class="sk">T R²</div></div>
+        <div class="stat-badge"><div class="sv" style="color:var(--teal)">${data.rain_acc ? (data.rain_acc*100).toFixed(1)+'%' : '–'}</div><div class="sk">Rain Acc</div></div>
+      </div>
+    </div>`;
+
+  // Update history tab
+  if (data.temp_chart) {
+    document.getElementById('hist-temp-chart').innerHTML = `<img class="chart-img" src="data:image/png;base64,${data.temp_chart}">`;
+    document.getElementById('hist-rain-chart').innerHTML = `<img class="chart-img" src="data:image/png;base64,${data.rain_chart}">`;
+  }
+
+  fillCityDefaults();
+}
+
+function fillCityDefaults() {
+  const cfg = CITY_SUMMARY[currentCity] || {};
+  if (!cfg) return;
+  setSlider('pred-hum',  'hum-val',  cfg.avg_humidity || 65);
+  setSlider('pred-pres', 'pres-val', cfg.avg_pressure || 1013);
+  setSlider('pred-wind', 'wind-val', cfg.avg_wind     || 15);
+  setSlider('pred-cloud','cloud-val',cfg.avg_cloud    || 50);
+}
+
+function fillFcDefaults() {
+  const cfg = CITY_SUMMARY[currentCity] || {};
+  setSlider('fc-hum',  'fc-hum-val',  cfg.avg_humidity || 65);
+  setSlider('fc-pres', 'fc-pres-val', cfg.avg_pressure || 1013);
+  setSlider('fc-wind', 'fc-wind-val', cfg.avg_wind     || 15);
+  setSlider('fc-cloud','fc-cloud-val',cfg.avg_cloud    || 50);
+}
+
+function setSlider(id, valId, val) {
+  const el = document.getElementById(id);
+  if (el) { el.value = val; document.getElementById(valId).textContent = val; }
+}
+
+// ── Predict ───────────────────────────────────────────────────────────────────
+async function predict() {
+  const sp = document.getElementById('pred-spin');
+  sp.classList.remove('hidden');
+  const body = {
+    city:        currentCity,
+    type:        document.getElementById('pred-type').value,
+    month:       document.getElementById('pred-month').value,
+    day_of_year: document.getElementById('pred-doy').value,
+    humidity:    document.getElementById('pred-hum').value,
+    pressure:    document.getElementById('pred-pres').value,
+    wind_speed:  document.getElementById('pred-wind').value,
+    cloud_cover: document.getElementById('pred-cloud').value,
+  };
+  const r = await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  sp.classList.add('hidden');
+
+  const box = document.getElementById('pred-result');
+  box.classList.add('show');
+  if (d.type === 'temperature') {
+    document.getElementById('res-icon').textContent = '🌡';
+    document.getElementById('res-val').textContent  = d.label;
+    document.getElementById('res-val').style.color  = '#58a6ff';
+    document.getElementById('res-lbl').textContent  = 'Predicted Temperature';
+    document.getElementById('m-rain-wrap').style.display = 'none';
+  } else {
+    document.getElementById('res-icon').textContent = d.will_rain ? '🌧' : '☀️';
+    document.getElementById('res-val').textContent  = d.label;
+    document.getElementById('res-val').style.color  = d.will_rain ? '#58a6ff' : '#d29922';
+    document.getElementById('res-lbl').textContent  = `Rain Probability: ${d.probability}%`;
+    document.getElementById('m-rain-wrap').style.display = '';
+    document.getElementById('m-rain').textContent   = d.probability + '%';
+  }
+  document.getElementById('m-city').textContent   = d.city;
+  document.getElementById('m-season').textContent = d.season;
+  document.getElementById('m-conf').textContent   = d.confidence + '%';
+  document.getElementById('conf-pct').textContent = d.confidence + '%';
+  document.getElementById('conf-fill').style.width = d.confidence + '%';
+}
+
+// ── Forecast ──────────────────────────────────────────────────────────────────
+async function getForecast() {
+  const sp   = document.getElementById('fc-spin');
+  sp.classList.remove('hidden');
+  const ds   = document.getElementById('fc-date').value.split('-');
+  const body = {
+    city: currentCity, year: ds[0], month: ds[1], day: ds[2],
+    humidity:    document.getElementById('fc-hum').value,
+    pressure:    document.getElementById('fc-pres').value,
+    wind_speed:  document.getElementById('fc-wind').value,
+    cloud_cover: document.getElementById('fc-cloud').value,
+  };
+  const r = await fetch('/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  sp.classList.add('hidden');
+
+  document.getElementById('fc-cards').innerHTML = d.dates.map((dt,i) => {
+    const rp = d.rain_probs[i];
+    const ic = rp>60?'🌧':rp>30?'🌦':'☀️';
+    return `<div class="fc-card"><div class="fc-day">${dt}</div><div class="fc-icon">${ic}</div><div class="fc-temp">${d.temperatures[i]}°C</div><div class="fc-rain">${rp}% rain</div></div>`;
+  }).join('');
+  document.getElementById('fc-temp-chart').innerHTML = `<img class="chart-img" src="data:image/png;base64,${d.temp_chart}">`;
+  document.getElementById('fc-rain-chart').innerHTML = `<img class="chart-img" src="data:image/png;base64,${d.rain_chart}">`;
+  document.getElementById('fc-result').classList.remove('hidden');
+}
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+async function compareAll() {
+  const sp   = document.getElementById('cmp-spin');
+  sp.classList.remove('hidden');
+  const doy  = Math.round(parseInt(document.getElementById('cmp-month').value) * 30.5 - 15);
+  const body = {
+    cities:      Object.keys(CITY_DATA),
+    month:       document.getElementById('cmp-month').value,
+    day_of_year: doy,
+    humidity:    document.getElementById('cmp-hum').value,
+    pressure:    document.getElementById('cmp-pres').value,
+    wind_speed:  document.getElementById('cmp-wind').value,
+    cloud_cover: document.getElementById('cmp-cloud').value,
+  };
+  const r = await fetch('/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  sp.classList.add('hidden');
+
+  document.getElementById('cmp-chart').innerHTML = `<img class="chart-img" src="data:image/png;base64,${d.chart}">`;
+
+  const rows = d.results.filter(x=>!x.error).map(x => {
+    const tc = x.temperature>30?'hot':x.temperature<15?'cool':'warm';
+    return `<tr>
+      <td><strong>${x.city}</strong></td>
+      <td><span style="color:var(--muted);font-size:.75rem">${x.country}</span></td>
+      <td><span style="font-size:.72rem;color:var(--muted)">${x.climate}</span></td>
+      <td><span class="temp-pill ${tc}">${x.temperature}°C</span></td>
+      <td>
+        <span class="rain-bar-bg"><span class="rain-bar-fill" style="width:${x.rain_prob}%"></span></span>
+        <span class="rain-pct">${x.rain_prob}%</span>
+      </td>
+      <td>${x.will_rain?'🌧 Yes':'☀️ No'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cmp-table').innerHTML = `
+    <thead><tr><th>City</th><th>Country</th><th>Climate</th><th>Temperature</th><th>Rain Probability</th><th>Rain?</th></tr></thead>
+    <tbody>${rows}</tbody>`;
+
+  document.getElementById('cmp-result').classList.remove('hidden');
+}
+
+// ── Misc ──────────────────────────────────────────────────────────────────────
+function randomInputs() {
+  const rnd = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+  setSlider('pred-hum',  'hum-val',  rnd(20,100));
+  setSlider('pred-pres', 'pres-val', rnd(990,1035));
+  setSlider('pred-wind', 'wind-val', rnd(0,60));
+  setSlider('pred-cloud','cloud-val',rnd(0,100));
+  document.getElementById('pred-month').value = rnd(1,12);
+  document.getElementById('pred-doy').value   = rnd(1,365);
+}
+
+function filterCities() {
+  const q = document.getElementById('city-search').value.toLowerCase();
+  document.querySelectorAll('.city-btn').forEach(b => {
+    b.style.display = b.dataset.city.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+// Init
+selectCity('{{ city_list[0] }}');
+</script>
+</body>
+</html>
